@@ -84,7 +84,7 @@ static void stepperPulseStart (stepper_t *stepper)
 #endif
 
 #ifdef C_AXIS
-    if(stepper->step_outbits.b)
+    if(stepper->step_outbits.c)
         steps[C_AXIS]++;
 #endif
 
