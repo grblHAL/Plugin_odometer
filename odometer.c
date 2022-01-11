@@ -125,7 +125,7 @@ static void odometers_write (sys_state_t state)
     nvs.memcpy_to_nvs(odometers_address, (uint8_t *)&odometers, sizeof(odometer_data_t), true);
 }
 
-ISR_CODE static void onSpindleSetState (spindle_state_t state, float rpm)
+ISR_CODE static void ISR_FUNC(onSpindleSetState)(spindle_state_t state, float rpm)
 {
     static uint32_t ms = 0;
 
