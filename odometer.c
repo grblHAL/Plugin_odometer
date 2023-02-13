@@ -4,7 +4,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2020-2021 Terje Io
+  Copyright (c) 2020-2023 Terje Io
 
   Grbl is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -55,6 +55,7 @@ static odometer_data_t odometers, odometers_prv;
 static nvs_io_t nvs;
 static stepper_pulse_start_ptr stepper_pulse_start;
 static on_state_change_ptr on_state_change;
+static on_spindle_selected_ptr on_spindle_selected;
 static spindle_set_state_ptr spindle_set_state_;
 static settings_changed_ptr settings_changed;
 static on_report_options_ptr on_report_options;
@@ -141,15 +142,21 @@ ISR_CODE static void ISR_FUNC(onSpindleSetState)(spindle_state_t state, float rp
     }
 }
 
-// Reclaim entry points that may have been changed on settings change.
-static void onSettingsChanged (settings_t *settings)
+static void onSpindleSelected (spindle_ptrs_t *spindle)
 {
-    settings_changed(settings);
-
-    if(hal.spindle.set_state != onSpindleSetState) {
-        spindle_set_state_ = hal.spindle.set_state;
-        hal.spindle.set_state = onSpindleSetState;
+    if(spindle->id == 0 && spindle->set_state != onSpindleSetState) {
+        spindle_set_state_ = spindle->set_state;
+        spindle->set_state = onSpindleSetState;
     }
+
+    if(on_spindle_selected)
+        on_spindle_selected(spindle);
+}
+
+// Reclaim entry points that may have been changed on settings change.
+static void onSettingsChanged (settings_t *settings, settings_changed_flags_t changed)
+{
+    settings_changed(settings, changed);
 
     if(hal.stepper.pulse_start != stepperPulseStart) {
         stepper_pulse_start = hal.stepper.pulse_start;
@@ -247,15 +254,15 @@ static void onReportOptions (bool newopt)
     if(newopt)
         hal.stream.write(",ODO");
     else
-        hal.stream.write("[PLUGIN:ODOMETERS v0.02]" ASCII_EOL);
+        hal.stream.write("[PLUGIN:ODOMETERS v0.03]" ASCII_EOL);
 }
 
-static void odometer_warning1 (uint_fast16_t state)
+static void odometer_warning1 (sys_state_t state)
 {
     report_message("EEPROM or FRAM is required for odometers!", Message_Warning);
 }
 
-static void odometer_warning2 (uint_fast16_t state)
+static void odometer_warning2 (sys_state_t state)
 {
     report_message("Not enough NVS storage for odometers!", Message_Warning);
 }
@@ -293,8 +300,8 @@ void odometer_init()
         settings_changed = hal.settings_changed;
         hal.settings_changed = onSettingsChanged;
 
-        spindle_set_state_ = hal.spindle.set_state;
-        hal.spindle.set_state = onSpindleSetState;
+        on_spindle_selected = grbl.on_spindle_selected;
+        grbl.on_spindle_selected = onSpindleSelected;
 
         stepper_pulse_start = hal.stepper.pulse_start;
         hal.stepper.pulse_start = stepperPulseStart;
