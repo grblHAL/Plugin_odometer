@@ -224,7 +224,7 @@ static status_code_t odometer_command (sys_state_t state, char *args)
 }
 
 const sys_command_t odometer_command_list[] = {
-    {"ODOMETERS", false, odometer_command},
+    {"ODOMETERS", odometer_command},
 };
 
 static sys_commands_t odometer_commands = {
@@ -254,7 +254,7 @@ static void onReportOptions (bool newopt)
     if(newopt)
         hal.stream.write(",ODO");
     else
-        hal.stream.write("[PLUGIN:ODOMETERS v0.03]" ASCII_EOL);
+        hal.stream.write("[PLUGIN:ODOMETERS v0.04]" ASCII_EOL);
 }
 
 static void odometer_warning1 (sys_state_t state)
