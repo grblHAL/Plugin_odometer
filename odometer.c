@@ -126,11 +126,11 @@ static void odometers_write (sys_state_t state)
     nvs.memcpy_to_nvs(odometers_address, (uint8_t *)&odometers, sizeof(odometer_data_t), true);
 }
 
-ISR_CODE static void ISR_FUNC(onSpindleSetState)(spindle_state_t state, float rpm)
+ISR_CODE static void ISR_FUNC(onSpindleSetState)(spindle_ptrs_t *spindle, spindle_state_t state, float rpm)
 {
     static uint32_t ms = 0;
 
-    spindle_set_state_(state, rpm);
+    spindle_set_state_(spindle, state, rpm);
 
     if(state.on)
         ms = hal.get_elapsed_ticks();
@@ -254,7 +254,7 @@ static void onReportOptions (bool newopt)
     if(newopt)
         hal.stream.write(",ODO");
     else
-        hal.stream.write("[PLUGIN:ODOMETERS v0.04]" ASCII_EOL);
+        hal.stream.write("[PLUGIN:ODOMETERS v0.05]" ASCII_EOL);
 }
 
 static void odometer_warning1 (sys_state_t state)
