@@ -4,7 +4,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2020-2023 Terje Io
+  Copyright (c) 2020-2024 Terje Io
 
   Grbl is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -59,7 +59,6 @@ static on_spindle_selected_ptr on_spindle_selected;
 static spindle_set_state_ptr spindle_set_state_;
 static settings_changed_ptr settings_changed;
 static on_report_options_ptr on_report_options;
-static on_report_command_help_ptr on_report_command_help;
 
 static void stepperPulseStart (stepper_t *stepper)
 {
@@ -121,7 +120,7 @@ void onStateChanged (sys_state_t state)
 }
 
 // Called by foreground process.
-static void odometers_write (sys_state_t state)
+static void odometers_write (void *data)
 {
     nvs.memcpy_to_nvs(odometers_address, (uint8_t *)&odometers, sizeof(odometer_data_t), true);
 }
@@ -138,7 +137,7 @@ ISR_CODE static void ISR_FUNC(onSpindleSetState)(spindle_ptrs_t *spindle, spindl
         odometers.spindle += (hal.get_elapsed_ticks() - ms);
         ms = 0;
         // Write odometer data in foreground process.
-        protocol_enqueue_rt_command(odometers_write);
+        protocol_enqueue_foreground_task(odometers_write, NULL);
     }
 }
 
@@ -224,28 +223,17 @@ static status_code_t odometer_command (sys_state_t state, char *args)
 }
 
 const sys_command_t odometer_command_list[] = {
-    {"ODOMETERS", odometer_command},
+    {"ODOMETERS", odometer_command, {}, {
+        .str = "$ODOMETERS - list odometer log"
+     ASCII_EOL "$ODOMETERS=PREV - list previous odometer log when available"
+     ASCII_EOL "$ODOMETERS=RST - copy current log to previous and clear current"
+    } }
 };
 
 static sys_commands_t odometer_commands = {
     .n_commands = sizeof(odometer_command_list) / sizeof(sys_command_t),
     .commands = odometer_command_list
 };
-
-sys_commands_t *odometer_get_commands()
-{
-    return &odometer_commands;
-}
-
-static void onReportCommandHelp (void)
-{
-    hal.stream.write("$ODOMETERS - list odometer log" ASCII_EOL);
-    hal.stream.write("$ODOMETERS=PREV - list previous odometer log when available" ASCII_EOL);
-    hal.stream.write("$ODOMETERS=RST - copy current log to previous and clear current" ASCII_EOL);
-
-    if(on_report_command_help)
-        on_report_command_help();
-}
 
 static void onReportOptions (bool newopt)
 {
@@ -254,17 +242,7 @@ static void onReportOptions (bool newopt)
     if(newopt)
         hal.stream.write(",ODO");
     else
-        hal.stream.write("[PLUGIN:ODOMETERS v0.05]" ASCII_EOL);
-}
-
-static void odometer_warning1 (sys_state_t state)
-{
-    report_message("EEPROM or FRAM is required for odometers!", Message_Warning);
-}
-
-static void odometer_warning2 (sys_state_t state)
-{
-    report_message("Not enough NVS storage for odometers!", Message_Warning);
+        hal.stream.write("[PLUGIN:ODOMETERS v0.06]" ASCII_EOL);
 }
 
 void odometer_init()
@@ -272,9 +250,9 @@ void odometer_init()
     memcpy(&nvs, nvs_buffer_get_physical(), sizeof(nvs_io_t));
 
     if(!(nvs.type == NVS_EEPROM || nvs.type == NVS_FRAM))
-        protocol_enqueue_rt_command(odometer_warning1);
+        protocol_enqueue_foreground_task(report_warning, "EEPROM or FRAM is required for odometers!");
     else if(NVS_SIZE - GRBL_NVS_SIZE - hal.nvs.driver_area.size < ((sizeof(odometer_data_t) + NVS_CRC_BYTES) * 2))
-        protocol_enqueue_rt_command(odometer_warning2);
+        protocol_enqueue_foreground_task(report_warning, "Not enough NVS storage for odometers!");
     else {
 
         odometers_address = NVS_SIZE - (sizeof(odometer_data_t) + NVS_CRC_BYTES);
@@ -285,17 +263,11 @@ void odometer_init()
 
         hal.driver_cap.odometers = On;
 
-        odometer_commands.on_get_commands = grbl.on_get_commands;
-        grbl.on_get_commands = odometer_get_commands;
-
         on_state_change = grbl.on_state_change;
         grbl.on_state_change = onStateChanged;
 
         on_report_options = grbl.on_report_options;
         grbl.on_report_options = onReportOptions;
-
-        on_report_command_help = grbl.on_report_command_help;
-        grbl.on_report_command_help = onReportCommandHelp;
 
         settings_changed = hal.settings_changed;
         hal.settings_changed = onSettingsChanged;
@@ -305,6 +277,8 @@ void odometer_init()
 
         stepper_pulse_start = hal.stepper.pulse_start;
         hal.stepper.pulse_start = stepperPulseStart;
+
+        system_register_commands(&odometer_commands);
     }
 }
 
