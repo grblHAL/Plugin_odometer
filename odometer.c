@@ -54,27 +54,27 @@ static void stepperPulseStart (stepper_t *stepper)
 {
     odometer_changed = true;
 
-    if(stepper->step_outbits.x)
+    if(stepper->step_out.x)
         steps[X_AXIS]++;
 
-    if(stepper->step_outbits.y)
+    if(stepper->step_out.y)
         steps[Y_AXIS]++;
 
-    if(stepper->step_outbits.z)
+    if(stepper->step_out.z)
         steps[Z_AXIS]++;
 
 #ifdef A_AXIS
-    if(stepper->step_outbits.a)
+    if(stepper->step_out.a)
         steps[A_AXIS]++;
 #endif
 
 #ifdef B_AXIS
-    if(stepper->step_outbits.b)
+    if(stepper->step_out.b)
         steps[B_AXIS]++;
 #endif
 
 #ifdef C_AXIS
-    if(stepper->step_outbits.c)
+    if(stepper->step_out.c)
         steps[C_AXIS]++;
 #endif
 
@@ -232,7 +232,7 @@ static void onReportOptions (bool newopt)
     if(newopt)
         hal.stream.write(",ODO");
     else
-        hal.stream.write("[PLUGIN:ODOMETERS v0.06]" ASCII_EOL);
+        report_plugin("Odometers", "0.07");
 }
 
 void odometer_init()
