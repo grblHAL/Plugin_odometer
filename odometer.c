@@ -31,6 +31,7 @@
 #include "grbl/system.h"
 #include "grbl/protocol.h"
 #include "grbl/nvs_buffer.h"
+#include "grbl/task.h"
 
 typedef struct {
     uint64_t motors;
@@ -127,7 +128,7 @@ ISR_CODE static void ISR_FUNC(onSpindleSetState)(spindle_ptrs_t *spindle, spindl
         odometers.spindle += (hal.get_elapsed_ticks() - ms);
         ms = 0;
         // Write odometer data in foreground process.
-        protocol_enqueue_foreground_task(odometers_write, NULL);
+        task_add_immediate(odometers_write, NULL);
     }
 }
 
@@ -232,7 +233,7 @@ static void onReportOptions (bool newopt)
     if(newopt)
         hal.stream.write(",ODO");
     else
-        report_plugin("Odometers", "0.07");
+        report_plugin("Odometers", "0.08");
 }
 
 void odometer_init()
@@ -240,9 +241,9 @@ void odometer_init()
     memcpy(&nvs, nvs_buffer_get_physical(), sizeof(nvs_io_t));
 
     if(!(nvs.type == NVS_EEPROM || nvs.type == NVS_FRAM))
-        protocol_enqueue_foreground_task(report_warning, "EEPROM or FRAM is required for odometers!");
+        task_run_on_startup(report_warning, "EEPROM or FRAM is required for odometers!");
     else if(NVS_SIZE - GRBL_NVS_SIZE - hal.nvs.driver_area.size < ((sizeof(odometer_data_t) + NVS_CRC_BYTES) * 2))
-        protocol_enqueue_foreground_task(report_warning, "Not enough NVS storage for odometers!");
+        task_run_on_startup(report_warning, "Not enough NVS storage for odometers!");
     else {
 
         odometers_address = NVS_SIZE - (sizeof(odometer_data_t) + NVS_CRC_BYTES);
